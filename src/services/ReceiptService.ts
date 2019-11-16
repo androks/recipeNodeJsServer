@@ -1,120 +1,68 @@
 import {Request, Response} from "express";
-import mongoose from "mongoose";
-import {Recipe} from "../models/Recipe";
-import {RecipeDoc} from "../models/db/RecipeSchema";
-import {RecipeVersionDoc} from "../models/db/RecipeVersionSchema";
-import {RecipeVersion} from "../models/RecipeVersion";
+import {BadRequestException, NotFoundException} from "./Exceptions";
+import {RecipeManager} from "./RecipeManager";
 
 export class ReceiptService {
+
     public welcomeMessage(req: Request, res: Response) {
         return res.status(200).send("Welcome to receipt API");
     }
 
     public async getAllReceipts(req: Request, res: Response) {
         try {
-            let items: Recipe[] = await RecipeDoc.find().select('actualVersion');
-            let ids = items.map(item => item.actualVersion);
-            let result: RecipeVersion[] = await RecipeVersionDoc.find({'_id': {$in: ids}});
-            res.status(200).send(ReceiptService.mapAllLatestRecipesToResponse(result))
+            res.send(await RecipeManager.getLatestRecipes())
         } catch (e) {
-            res.status(500).send(e)
+            ReceiptService.handleException(res, e)
         }
     }
 
     public async saveNewRecipe(req: Request, res: Response) {
         try {
-            const newRecipeId = new mongoose.Types.ObjectId();
-            const newRecipeVersionId = new mongoose.Types.ObjectId();
-
-            await new RecipeDoc({
-                _id: newRecipeId,
-                actualVersion: newRecipeVersionId
-            }).save();
-            await new RecipeVersionDoc({
-                _id: newRecipeVersionId,
-                recipeId: newRecipeId,
-                description: req.body.description
-            }).save();
-
-            res.send()
+            res.send(await RecipeManager.saveNewRecipe(req.body.description))
         } catch (e) {
-            res.status(500).send(e)
+            ReceiptService.handleException(res, e)
         }
     }
 
     public async saveNewRecipeVersion(req: Request, res: Response) {
         try {
-            const recipeId = req.params.id;
-            const newRecipeVersionId = new mongoose.Types.ObjectId();
-
-            await RecipeDoc.updateOne({_id: recipeId}, {actualVersion: newRecipeVersionId});
-            await new RecipeVersionDoc({
-                _id: newRecipeVersionId,
-                recipeId: recipeId,
-                description: req.body.description
-            }).save();
-
-            res.send()
+            res.send(await RecipeManager.saveNewRecipeVersion(req.params.id, req.body.description))
         } catch (e) {
-            res.status(500).send(e)
+            ReceiptService.handleException(res, e)
         }
     }
 
     public async getAllVersionsOfRecipe(req: Request, res: Response) {
         try {
-            const recipeId = req.params.id;
-            let dbRes = await RecipeVersionDoc.find({recipeId: recipeId})
-            res.send(ReceiptService.mapAllVersionsOfRecipeToResponse(dbRes))
+            res.send(await RecipeManager.getAllVersionsOfRecipe(req.params.id))
         } catch (e) {
-            res.status(500).send(e)
-        }
-    }
-
-    public async getRecipes(req: Request, res: Response) {
-        try {
-            res.status(200).send(await RecipeDoc.find())
-        } catch (e) {
-            res.status(500).send(e)
-        }
-    }
-
-    public async getRecipesVersions(req: Request, res: Response) {
-        try {
-            res.status(200).send(await RecipeVersionDoc.find())
-        } catch (e) {
-            res.status(500).send(e)
+            ReceiptService.handleException(res, e)
         }
     }
 
     public async clear(req: Request, res: Response) {
         try {
-            await RecipeDoc.deleteMany({});
-            await RecipeVersionDoc.deleteMany({});
-            res.status(200).send()
+            res.send(await RecipeManager.clear())
         } catch (e) {
-            res.status(500).send(e)
+            ReceiptService.handleException(res, e)
         }
     }
 
-    private static mapAllLatestRecipesToResponse(items: RecipeVersion[]): RecipeVersion[] {
-        return items.map(item => {
-            let res = item.toObject();
-            res.id = res.recipeId;
-            delete res._id;
-            delete res.__v;
-            delete res.recipeId;
-            return res
-        })
+    private static handleException(res: Response, e: Error) {
+        switch (e.name) {
+            case BadRequestException.NAME:
+                res.status(400);
+                break;
+            case NotFoundException.NAME:
+                res.status(404);
+                break;
+            default:
+                res.status(500);
+        }
+        res.send(this.getErrorBody(e.message))
     }
 
-    private static mapAllVersionsOfRecipeToResponse(items: RecipeVersion[]): RecipeVersion[] {
-        return items.map(item => {
-            let res = item.toObject();
-            res.id = res._id;
-            delete res._id;
-            delete res.__v;
-            delete res.recipeId;
-            return res
-        })
+    private static getErrorBody(message: string): any {
+        return {error: message}
     }
 }

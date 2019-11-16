@@ -1,4 +1,4 @@
-import mongoose, {model, Model, Schema} from "mongoose";
+import {model, Model, Schema} from "mongoose";
 import {Recipe} from "../Recipe";
 import {RecipeVersion} from "../RecipeVersion";
 

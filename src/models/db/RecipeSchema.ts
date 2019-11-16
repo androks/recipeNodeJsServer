@@ -1,7 +1,7 @@
-import mongoose, {model, Model, Schema} from "mongoose";
+import {model, Model, Schema} from "mongoose";
 import {Recipe} from "../Recipe";
 
-const RecipeSchema = new mongoose.Schema({
+const RecipeSchema = new Schema({
     _id: Schema.Types.ObjectId,
     actualVersion: { type: Schema.Types.ObjectId, ref: 'RecipeVersion' }
 });
